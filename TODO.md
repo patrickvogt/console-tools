@@ -5,6 +5,7 @@
 pi-ems-flasher
 ==============
 -add some options
+
 -add SRAM support
 -add error handling (look at PyUSB implementation for raised exceptions)
 
