@@ -101,17 +101,17 @@ def _prepare_ems_cmd(ems_cmd, address, value):
 def _prepare_ems_rom_read(address, value):
    return _prepare_ems_cmd(EMS_COMMANDS.ROM_READ, address, value)
 
-# not implemented yet -- shouldn't be too hard   
-def _prepare_ems_sram_read():
-    print "SRAM_read -- not implemented yet"
+# prepare and return a read command from SRAM 
+def _prepare_ems_sram_read(address, value):
+    return _prepare_ems_cmd(EMS_COMMANDS.SRAM_READ, address, value)
 
 # prepare and return a write command of 'value' bytes starting at 'address'
 def _prepare_ems_rom_write(address, value):
     return _prepare_ems_cmd(EMS_COMMANDS.ROM_WRITE, address, value)
 
-# not implemented yet -- shouldn't be too hard 
-def _prepare_ems_sram_write():
-    print "SRAM_write -- not implemented yet"
+# pepare and return a write command of SRAM
+def _prepare_ems_sram_write(address, value):
+    return _prepare_ems_cmd(EMS_COMMANDS.SRAM_WRITE, address, value)
     
 # print the ROM title (assuming it is 15 bytes long)
 def _print_rom_title(header):
@@ -203,23 +203,22 @@ def ems_read_rom_header(ems_devh, bank):
     #receive and return ROM header data
     return ems_devh.read(EMS.EP_RECV, GB_ROM.ROMHEADER_SIZE) 
     
-# read the ROM in bank 'bank' and save to file 'filename'
-def ems_read_rom(ems_devh, bank, filename, count):
-    # prepare args
-    address = _get_bank_start_address(bank)
-    value = USB_TRANSFER.BLOCKSIZE_DATAREAD
-
+# generic read for SRAM/ROM
+def ems_read(ems_devh, filename, address = 0, value = USB_TRANSFER.BLOCKSIZE_DATAREAD, count = EMS.SRAM_SIZE, SRAM = True):
     # save the initial start address where we started reading
     init_address = address
     
-    # copy from USB to ROM
+    # copy from USB to file
     with open(filename, 'wb') as f: # open writable file
         while address < (init_address + count): # is still something to read?
             # prepare command
-            cmd = _prepare_ems_rom_read(address, value)
+            if True == SRAM:
+                cmd = _prepare_ems_sram_read(address, value)
+            else:
+                cmd = _prepare_ems_rom_read(address, value)
             # send read command
             ems_devh.write(EMS.EP_SEND, cmd)
-            # receive the ROM data
+            # receive the data
             buf = ems_devh.read(EMS.EP_RECV, USB_TRANSFER.BLOCKSIZE_DATAREAD)
             # if data was read
             if buf:
@@ -231,6 +230,18 @@ def ems_read_rom(ems_devh, bank, filename, count):
                 break 
         # close file
         f.close()
+    
+# read the ROM in bank 'bank' and save to file 'filename'
+def ems_read_rom(ems_devh, bank, filename, count):
+    # prepare args
+    address = _get_bank_start_address(bank)
+    value = USB_TRANSFER.BLOCKSIZE_DATAREAD
+    
+    ems_read(ems_devh, filename, address, value, count, False)
+        
+# read the SRAM and save to file 'filename'
+def ems_read_sram(ems_devh, filename):
+    ems_read(ems_devh, filename)
         
 # dump both banks of the flash card
 def ems_dump(ems_devh, filename):
@@ -239,21 +250,20 @@ def ems_dump(ems_devh, filename):
     # dump bank 1
     ems_read_rom(ems_devh, 1, "bank_1"+filename, EMS.BANK_SIZE)
 
-# write the ROM file in 'filename' to bank 'bank' via USB
-def ems_write_rom(ems_devh, bank, filename):
-    # prepare args
-    address = _get_bank_start_address(bank)
-    value = USB_TRANSFER.BLOCKSIZE_DATAWRITE
-
-    # copy from ROM to USB
+# generic write for SRAM/ROM
+def ems_write(ems_devh, filename, address = 0, value = USB_TRANSFER.BLOCKSIZE_DATAWRITE, SRAM = True):
+    # copy from file to USB
     with open(filename, 'rb') as f: # open readable file
         while True:
-            # read from ROM file
+            # read from file
             buf = f.read(USB_TRANSFER.BLOCKSIZE_DATAWRITE)
             # if data was read
             if buf:
                 # prepare write command
-                cmd = _prepare_ems_rom_write(address, value)
+                if True == SRAM:
+                    cmd = _prepare_ems_sram_write(address, value)
+                else:
+                    cmd = _prepare_ems_rom_write(address, value)
                 # add the actual data to the command
                 cmd.extend(buf)
                 # write the data to the flash card
@@ -265,7 +275,19 @@ def ems_write_rom(ems_devh, bank, filename):
                 break
         # close the file
         f.close()
-            
+        
+# write the SRAM file in 'filename' via USB
+def ems_write_sram(ems_devh, filename):
+    ems_write(ems_devh, filename)
+    
+# write the ROM file in 'filename' to bank 'bank' via USB
+def ems_write_rom(ems_devh, bank, filename):
+    # prepare args
+    address = _get_bank_start_address(bank)
+    value = USB_TRANSFER.BLOCKSIZE_DATAWRITE
+
+    ems_write(ems_devh, filename, address, value, False)
+
 # TESTS
 
 # ################################
@@ -288,6 +310,8 @@ def ems_write_rom(ems_devh, bank, filename):
     # print "Bank "+str(bank)+":"
     # _print_header(header)
     
+# ems_devh.reset()
+    
 # ############################
 # # 02. TEST FOR ROM WRITING #
 # ############################
@@ -309,6 +333,10 @@ def ems_write_rom(ems_devh, bank, filename):
 # # try to open flash card
 # ems_devh = ems_open()
 
+# # is flash card connected and was it found?
+# if ems_devh is None:
+    # raise ValueError('EMS was not found.')
+
 # # read the header of the ROM in the second bank
 # header = ems_read_rom_header(ems_devh, 1)
 # # read the actual ROM in the second bank into 'bla.gb'
@@ -321,5 +349,37 @@ def ems_write_rom(ems_devh, bank, filename):
 # # try to open flash card
 # ems_devh = ems_open()
 
+# # is flash card connected and was it found?
+# if ems_devh is None:
+    # raise ValueError('EMS was not found.')
+
 # # dump both banks
 # ems_dump(ems_devh, "dump.gb") 
+
+# #############################
+# # 05. TEST FOR SRAM READING #
+# #############################
+
+# # try to open flash card
+# ems_devh = ems_open()
+
+# # is flash card connected and was it found?
+# if ems_devh is None:
+    # raise ValueError('EMS was not found.')
+
+# # read SRAM and write to file 'sml2.sav'
+# ems_read_sram(ems_devh, "sml2.sav")
+
+# #############################
+# # 06. TEST FOR SRAM WRITING #
+# #############################
+
+# # try to open flash card
+# ems_devh = ems_open()
+
+# # is flash card connected and was it found?
+# if ems_devh is None:
+    # raise ValueError('EMS was not found.')
+
+# # write SRAM from file 'sml2.sav'
+# ems_write_sram(ems_devh, "sml2.sav")
