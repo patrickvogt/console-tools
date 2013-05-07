@@ -5,15 +5,8 @@
 pi-ems-flasher
 ==============
 + add some options 
-+ add SRAM support
 + add error handling (look at PyUSB implementation for raised exceptions)
-+ figure out how to close USB device handler in PyUSB
 + tidy everything up
-
-big-pi-ems-flasher
-==================
-+ learn how to do GUI in Python
-+ use pi-ems-flasher as backend
 
 gb-rom-merger
 =============
