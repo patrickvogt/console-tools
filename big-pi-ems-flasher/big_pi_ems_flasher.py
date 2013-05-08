@@ -5,14 +5,55 @@ from ttk import *
 from tkFileDialog import *
 from pi_ems_flasher import *
 import os.path
+import thread
 
-def read_rom():
-    ems_devh = ems_open()
+#todo merging analysieren (höchste priorität)
+#todo nicht lesen schreiben wenn cancel gedrückt wurde
+#todo fortschrittsbalken in alle anseren dinger einfügen
+#rom header mit dateigröße überprüfen
+#prüfen, ob datei <= 4096kb ist
+#prüfen, ob SRAM < 128kb ist
+
+DIALOG_CLOSE = False
+
+def nothing():
+    print ""
     
+def read(file, pbar, dlg):
+    global DIALOG_CLOSE
+
+    ems_devh = ems_open()
+    ems_read_rom(ems_devh, 1, os.path.normpath(file), pbar)
+    ems_close()
+    
+    DIALOG_CLOSE = True
+
+def read_rom(root):
     file = asksaveasfilename(filetypes=[("GameBoy ROM-Files", "*.gb")])
     
-    ems_read_rom(ems_devh, 1, os.path.normpath(file))
-    ems_close()
+    dlg = Toplevel()
+    dlg.protocol('WM_DELETE_WINDOW', nothing)
+    frame = Frame(dlg)
+    frame.pack()
+    pbar = Progressbar(frame, mode="determinate", orient="horizontal")
+    pbar.pack()
+
+    dlg.focus_set()
+    ## Make sure events only go to our dialog
+    dlg.grab_set()
+    ## Make sure dialog stays on top of its parent window (if needed)
+    dlg.transient(root)
+    
+    thread.start_new_thread(read, (file,pbar,dlg))
+    
+    dlg.update()
+    dlg.deiconify()
+    
+    # warte auf fortschrittsbalken
+    while False == DIALOG_CLOSE:
+        dlg.update()
+        
+    dlg.destroy()
     
 def write_rom():
     ems_devh = ems_open()
@@ -54,7 +95,7 @@ frame.pack()
 title = Label(frame, text=app_title, font=("Helvetica", 20, "bold"), width=20, anchor=CENTER)
 title.pack(padx=mpadx, pady=(13,5))
 
-group = LabelFrame(frame, text="File selection")
+group = LabelFrame(frame, text="File selection (not yet implemented in the backend)")
 group.pack(padx=mpadx, pady=mpady, fill=BOTH)
 
 f2 = Frame(group)
@@ -75,9 +116,9 @@ tree.column("third", width=125)
 tree.heading("#0", text="File Name", anchor=W)
 tree.heading("second", text="Game Name", anchor=W)
 tree.heading("third", text="Size", anchor=W)
-tree.insert('', 'end', 'first', text='Widget Tour')
+#tree.insert('', 'end', 'first', text='Widget Tour')
 
-tree.set('first', 'second', '12KB')
+#tree.set('first', 'second', '12KB')
  
 # add tree and scrollbars to frame
 tree.grid(in_=f2, row=0, column=0, sticky=NSEW)
@@ -88,12 +129,15 @@ f3.pack(pady=mpady)
 
 button = Button(f3, text="Add", command=dummy)
 button.pack(side=LEFT, padx=(5,5))
+button.configure(state=DISABLED)
 
 hi_there = Button(f3, text="Remove", command=dummy)
 hi_there.pack(side=LEFT,padx=(0,5))
+hi_there.configure(state=DISABLED)
 
 hi_there1 = Button(f3, text="Remove All", command=dummy)
 hi_there1.pack(side=LEFT,padx=(0,25))
+hi_there1.configure(state=DISABLED)
 
 group = LabelFrame(frame, text="Card Information")
 group.pack(padx=mpadx, pady=mpady, fill=BOTH)
@@ -137,7 +181,7 @@ ysb.grid(in_=f2, row=0, column=1, sticky=NS)
 f3 = Frame(group)
 f3.pack(pady=(0,10))
 
-hi_there2 = Button(f3, text="Read ROM", command=read_rom)
+hi_there2 = Button(f3, text="Read ROM", command= lambda: read_rom(root))
 hi_there2.pack(side=LEFT, padx=(0,5))
 
 hi_there3 = Button(f3, text="Write ROM(s)", command=write_rom)

@@ -195,9 +195,12 @@ def ems_read_rom_header(ems_devh, bank):
     return ems_devh.read(EMS.EP_RECV, GB_ROM.ROMHEADER_SIZE) 
     
 # generic read for SRAM/ROM
-def ems_read(ems_devh, filename, offset = 0, count = EMS.SRAM_SIZE, SRAM = True):
+def ems_read(ems_devh, filename, offset = 0, count = EMS.SRAM_SIZE, SRAM = True, pbar=None):
     # save the initial start offset where we started reading
     init_offset = offset
+    
+    if None!=pbar:
+        pbar["maximum"] = count
     
     # copy from USB to file
     with open(filename, 'wb') as f: # open writable file
@@ -218,21 +221,23 @@ def ems_read(ems_devh, filename, offset = 0, count = EMS.SRAM_SIZE, SRAM = True)
                 # update the read address
                 offset = offset + USB_TRANSFER.BLOCKSIZE_READ
             else:
-                break 
+                break
+            if None!=pbar:
+                pbar["value"] = offset - init_offset
         # close file
         f.close()
 
 # read the ROM in bank 'bank' and save to file 'filename'
-def ems_read_rom(ems_devh, bank, filename):
+def ems_read_rom(ems_devh, bank, filename, pbar=None):
     # prepare args
     offset = _get_bank_start_offset(bank)
     
     header = ems_read_rom_header(ems_devh, bank)
     
-    ems_read(ems_devh, filename, offset, 1 << (header[GB_ROM.ROMSIZE_OFFSET] + 15), False)
+    ems_read(ems_devh, filename, offset, 1 << (header[GB_ROM.ROMSIZE_OFFSET] + 15), False, pbar)
         
 # read the ROM in bank 'bank' and save to file 'filename'
-def ems_read_rom_with_count(ems_devh, bank, filename, count):
+def ems_read_rom_with_count(ems_devh, bank, filename, count, pbar=None):
     # prepare args
     offset = _get_bank_start_offset(bank)
     
@@ -288,9 +293,9 @@ def ems_write_rom(ems_devh, bank, filename):
     
 # TESTS
 
-# ################################
-# # 01. TEST FOR ROM HEADER INFO #
-# ################################
+################################
+# 01. TEST FOR ROM HEADER INFO #
+################################
 
 # # try to open flash card
 # ems_devh = ems_open()  
@@ -310,25 +315,25 @@ def ems_write_rom(ems_devh, bank, filename):
     
 # ems_close()
     
-# # ############################
-# # # 02. TEST FOR ROM WRITING #
-# # ############################
+############################
+# 02. TEST FOR ROM WRITING #
+############################
 
-# # # try to open flash card
-# # ems_devh = ems_open()  
+# # try to open flash card
+# ems_devh = ems_open()  
 
-# # # is flash card connected and was it found?
-# # if ems_devh is None:
-    # # raise ValueError('EMS was not found.')
+# # is flash card connected and was it found?
+# if ems_devh is None:
+    # raise ValueError('EMS was not found.')
     
-# # # write file 'sml2.gb' to second bank
-# # ems_write_rom(ems_devh, 1, "wb.gb")
+# # write file 'sml2.gb' to second bank
+# ems_write_rom(ems_devh, 1, "wb.gb")
 
-# # ems_close()
+# ems_close()
 
-# # ############################
-# # # 03. TEST FOR ROM READING #
-# # ############################
+############################
+# 03. TEST FOR ROM READING #
+############################
 
 # # try to open flash card
 # ems_devh = ems_open()
@@ -344,9 +349,9 @@ def ems_write_rom(ems_devh, bank, filename):
 
 # ems_close()  
 
-# # ########################
-# # # 04. TEST FOR DUMPING #
-# # ########################
+########################
+# 04. TEST FOR DUMPING #
+########################
 
 # # try to open flash card
 # ems_devh = ems_open()
@@ -360,9 +365,9 @@ def ems_write_rom(ems_devh, bank, filename):
 
 # ems_close()
 
-# # #############################
-# # # 05. TEST FOR SRAM READING #
-# # #############################
+#############################
+# 05. TEST FOR SRAM READING #
+#############################
 
 # # try to open flash card
 # ems_devh = ems_open()
@@ -376,18 +381,18 @@ def ems_write_rom(ems_devh, bank, filename):
 
 # ems_close()
 
-# # #############################
-# # # 06. TEST FOR SRAM WRITING #
-# # #############################
+#############################
+# 06. TEST FOR SRAM WRITING #
+#############################
 
-# # # try to open flash card
-# # ems_devh = ems_open()
+# # try to open flash card
+# ems_devh = ems_open()
 
-# # # is flash card connected and was it found?
-# # if ems_devh is None:
-    # # raise ValueError('EMS was not found.')
+# # is flash card connected and was it found?
+# if ems_devh is None:
+    # raise ValueError('EMS was not found.')
 
-# # # write SRAM from file 'sml2.sav'
-# # ems_write_sram(ems_devh, "sml2.sav")
+# # write SRAM from file 'sml2.sav'
+# ems_write_sram(ems_devh, "sml2.sav")
 
-# # ems_close()
+# ems_close()
