@@ -1,4 +1,7 @@
 /big-pi-ems-flasher/*.gb
-/big-pi-ems-flasher/*.gb
 /big-pi-ems-flasher/*.sav
 /big-pi-ems-flasher/pi_ems_flasher.pyc
+/big-pi-ems-flasher/test
+/big-pi-ems-flasher/*.pyc
+/big-pi-ems-flasher/*.gbc
+/big-pi-ems-flasher/*

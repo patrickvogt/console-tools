@@ -7,28 +7,39 @@ from pi_ems_flasher import *
 import os.path
 import thread
 
-#todo merging analysieren (höchste priorität)
-#todo nicht lesen schreiben wenn cancel gedrückt wurde
-#todo fortschrittsbalken in alle anseren dinger einfügen
-#rom header mit dateigröße überprüfen
-#prüfen, ob datei <= 4096kb ist
-#prüfen, ob SRAM < 128kb ist
+#todo merging analysieren (hoechste prioritaet)
+#todo nicht lesen schreiben wenn cancel gedrueckt wurde
+#todo fortschrittsbalken in alle anseren dinger einfuegen
+#rom header mit dateigroesse ueberpruefen
+#pruefen, ob datei <= 4096kb ist
+#pruefen, ob SRAM < 128kb ist
 
 DIALOG_CLOSE = False
 
 def nothing():
     print ""
     
-def read(file, pbar, dlg):
+def read_rom(file, pbar, dlg):
     global DIALOG_CLOSE
+    DIALOG_CLOSE = False
 
     ems_devh = ems_open()
     ems_read_rom(ems_devh, 1, os.path.normpath(file), pbar)
     ems_close()
     
     DIALOG_CLOSE = True
+    
+def write_sram(file, pbar, dlg):
+    global DIALOG_CLOSE
+    DIALOG_CLOSE = False
 
-def read_rom(root):
+    ems_devh = ems_open()
+    ems_write_sram(ems_devh, os.path.normpath(file), pbar)
+    ems_close()
+    
+    DIALOG_CLOSE = True
+
+def call_read_rom(root):
     file = asksaveasfilename(filetypes=[("GameBoy ROM-Files", "*.gb")])
     
     dlg = Toplevel()
@@ -44,7 +55,7 @@ def read_rom(root):
     ## Make sure dialog stays on top of its parent window (if needed)
     dlg.transient(root)
     
-    thread.start_new_thread(read, (file,pbar,dlg))
+    thread.start_new_thread(read_rom, (file,pbar,dlg))
     
     dlg.update()
     dlg.deiconify()
@@ -58,7 +69,7 @@ def read_rom(root):
 def write_rom():
     ems_devh = ems_open()
     
-    file = askopenfilename(filetypes=[("GameBoy ROM-Files", "*.gb")])
+    file = askopenfilename(filetypes=[("GameBoy ROM-Files", "*.gb"),("GameBoy Color ROM-Files", "*.gbc")])
     
     ems_write_rom(ems_devh, 1, os.path.normpath(file))
     ems_close()
@@ -71,13 +82,34 @@ def read_sram():
     ems_read_sram(ems_devh, os.path.normpath(file))
     ems_close()
     
-def write_sram():
+def call_write_sram():
     ems_devh = ems_open()
     
     file = askopenfilename(filetypes=[("GameBoy SRAM-Files", "*.sav")])
     
-    ems_write_sram(ems_devh, os.path.normpath(file))
-    ems_close()
+    dlg = Toplevel()
+    dlg.protocol('WM_DELETE_WINDOW', nothing)
+    frame = Frame(dlg)
+    frame.pack()
+    pbar = Progressbar(frame, mode="determinate", orient="horizontal")
+    pbar.pack()
+
+    dlg.focus_set()
+    ## Make sure events only go to our dialog
+    dlg.grab_set()
+    ## Make sure dialog stays on top of its parent window (if needed)
+    dlg.transient(root)
+    
+    thread.start_new_thread(write_sram, (file,pbar,dlg))
+    
+    dlg.update()
+    dlg.deiconify()
+    
+    # warte auf fortschrittsbalken
+    while False == DIALOG_CLOSE:
+        dlg.update()
+        
+    dlg.destroy()
     
 def dummy():
     print "dummy"
@@ -181,7 +213,7 @@ ysb.grid(in_=f2, row=0, column=1, sticky=NS)
 f3 = Frame(group)
 f3.pack(pady=(0,10))
 
-hi_there2 = Button(f3, text="Read ROM", command= lambda: read_rom(root))
+hi_there2 = Button(f3, text="Read ROM", command= lambda: call_read_rom(root))
 hi_there2.pack(side=LEFT, padx=(0,5))
 
 hi_there3 = Button(f3, text="Write ROM(s)", command=write_rom)
@@ -190,7 +222,7 @@ hi_there3.pack(side=LEFT, padx=(0,15))
 hi_there2 = Button(f3, text="Read SRAM", command=read_sram)
 hi_there2.pack(side=LEFT,padx=(0,5))
 
-hi_there3 = Button(f3, text="Write SRAM", command=write_sram)
+hi_there3 = Button(f3, text="Write SRAM", command=call_write_sram)
 hi_there3.pack(side=LEFT)
 
 status = Label(root, text="Status bar", relief=SUNKEN, anchor=W)

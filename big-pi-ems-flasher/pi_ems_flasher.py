@@ -2,6 +2,7 @@
 import usb.core
 # using socket for htonl() (host to network byte order (long))
 import socket
+import os
 
 # using pseudo-enums
 def enum(**enums):
@@ -255,37 +256,56 @@ def ems_dump(ems_devh, filename):
     ems_read_rom_with_count(ems_devh, 1, "bank_1"+filename, EMS.BANK_SIZE)
 
 # generic write for SRAM/ROM
-def ems_write(ems_devh, filename, offset = 0, SRAM = True):
-    # copy from file to USB
-    with open(filename, 'rb') as f: # open readable file
-        while True:
-            # read from file
-            buf = f.read(USB_TRANSFER.BLOCKSIZE_WRITE)
-            # if data was read
-            if buf:
-                # prepare write command
-                if True == SRAM:
-                    cmd = _prepare_ems_sram_write(offset)
+def ems_write(ems_devh, filename, offset = 0, SRAM = True, pbar=None):
+    size = os.path.getsize(filename)
+    
+    if None!=pbar:
+        pbar["maximum"] = size
+    if True==SRAM:
+        pbar["maximum"] = 131072
+    
+    i=0
+    #TODO test this stuff
+    
+    #if sram and filesize < 128 spam the flash card with our save file
+    while True:
+        # copy from file to USB
+        with open(filename, 'rb') as f: # open readable file
+            while True:
+                # read from file
+                buf = f.read(USB_TRANSFER.BLOCKSIZE_WRITE)
+                # if data was read
+                if buf:
+                    # prepare write command
+                    if True == SRAM:
+                        cmd = _prepare_ems_sram_write(offset)
+                    else:
+                        cmd = _prepare_ems_rom_write(offset)
+                    # add the actual data to the command
+                    cmd.extend(buf)
+                    # write the data to the flash card
+                    ems_devh.write(EMS.EP_SEND, cmd, None, USB_TRANSFER.TIMEOUT_WRITE)
+                    # update the write address
+                    offset = offset + USB_TRANSFER.BLOCKSIZE_WRITE
                 else:
-                    cmd = _prepare_ems_rom_write(offset)
-                # add the actual data to the command
-                cmd.extend(buf)
-                # write the data to the flash card
-                ems_devh.write(EMS.EP_SEND, cmd, None, USB_TRANSFER.TIMEOUT_WRITE)
-                # update the write address
-                offset = offset + USB_TRANSFER.BLOCKSIZE_WRITE
-            else:
-                # all data written -> finished
-                break
-        # close the file
-        f.close()
+                    # all data written -> finished
+                    break
+                if None!=pbar:
+                    pbar["value"] = offset
+            # close the file
+            f.close()
+        if SRAM==False or i>=(131072/size): 
+            break
+        else:
+            i=i+1
+    
         
 # write the SRAM file in 'filename' via USB
-def ems_write_sram(ems_devh, filename):
-    ems_write(ems_devh, filename)
+def ems_write_sram(ems_devh, filename, pbar=None):
+    ems_write(ems_devh, filename, 0, True, pbar)
     
 # write the ROM file in 'filename' to bank 'bank' via USB
-def ems_write_rom(ems_devh, bank, filename):
+def ems_write_rom(ems_devh, bank, filename, pbar=None):
     # prepare args
     offset = _get_bank_start_offset(bank)
 
