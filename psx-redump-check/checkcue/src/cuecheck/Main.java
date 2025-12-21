@@ -18,14 +18,28 @@ import javax.xml.parsers.ParserConfigurationException;
 
 import org.xml.sax.SAXException;
 
+/**
+ * checks the content of a cue file against the contents of the containing folder and vice versa
+ *   with parameter --verbose it will give every folder that is checked (normally will just print errors)
+ *   
+ *  also does some other check
+ *  	-checks that all the files are "bins"
+ *  	-checks that Track 01 is first mentioned in the cue file
+ */
 public class Main {
 
 	private static Map<String, List<String>> mCueContent = new HashMap<String, List<String>>();
 	private static Map<String, List<String>> mFileContent = new HashMap<String, List<String>>();
 
+	private static boolean isVerboseModeOn = false;
+
 	public static void main(String[] args) throws IOException, NoSuchAlgorithmException, URISyntaxException,
 			ParserConfigurationException, SAXException {
 		System.out.println("== Traversing Directory ==");
+		if (2 == args.length && args[1].equals("--verbose")) {
+			isVerboseModeOn = true;
+		}
+
 		File dir = new File(args[0]);
 		File[] directoryListing = dir.listFiles();
 		if (directoryListing != null) {
@@ -38,10 +52,17 @@ public class Main {
 				Map<String, List<String>> mFileCopy = new HashMap<String, List<String>>(mFileContent);
 
 				for (String key : mCueCopy.keySet()) {
-					System.out.println("==" + key);
+					if (isVerboseModeOn) {
+						System.out.println("==" + key);
+					}
 					List<String> s1 = mCueCopy.get(key);
 
+					// check that Track 01 is first in file
+					// rest of the order is not checked, but that Track 01 is not the first track is the most common problem
 					if (!(!s1.get(0).contains("(Track") || s1.get(0).contains("(Track 01)"))) {
+						if (!isVerboseModeOn) {
+							System.out.println("==" + key);
+						}
 						System.out.println("ERROR/S: Order in " + key + " seems wrong");
 					}
 
@@ -49,14 +70,23 @@ public class Main {
 						List<String> s2 = mFileCopy.get(key);
 						for (String key2 : s1) {
 							if (!key2.contains(".bin")) {
+								if (!isVerboseModeOn) {
+									System.out.println("==" + key);
+								}
 								System.out.println("ERROR/X: Extension of " + key2 + " seems wrong");
 							} else {
 								if (!s2.contains(key2)) {
+									if (!isVerboseModeOn) {
+										System.out.println("==" + key);
+									}
 									System.out.println("ERROR/F: File " + key2 + " could not be found");
 								}
 							}
 						}
 					} else {
+						if (!isVerboseModeOn) {
+							System.out.println("==" + key);
+						}
 						System.out.println("ERROR/O: Folder " + key + " and its content could not be found");
 					}
 				}
@@ -67,16 +97,24 @@ public class Main {
 				mFileCopy = new HashMap<String, List<String>>(mFileContent);
 
 				for (String key : mFileCopy.keySet()) {
-					System.out.println("==" + key);
+					if (isVerboseModeOn) {
+						System.out.println("==" + key);
+					}
 					List<String> s1 = mFileCopy.get(key);
 					if (mCueCopy.containsKey(key)) {
 						List<String> s2 = mCueCopy.get(key);
 						for (String key2 : s1) {
 							if (!s2.contains(key2)) {
+								if (!isVerboseModeOn) {
+									System.out.println("==" + key);
+								}
 								System.out.println("ERROR/C: Cue file is missing " + key2);
 							}
 						}
 					} else {
+						if (!isVerboseModeOn) {
+							System.out.println("==" + key);
+						}
 						System.out.println("ERROR/M: Cue file " + key + " could not be found or might be invalid");
 					}
 				}
