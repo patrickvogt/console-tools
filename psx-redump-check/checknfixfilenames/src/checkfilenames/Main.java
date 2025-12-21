@@ -5,17 +5,36 @@ import java.io.IOException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * checks that the content of a game folder (bin and cue files) is matching the
+ * name of the parent folder
+ * 
+ * also does some other check -only one dot (.) in file name (which is used to
+ * separate file name and extension), so X-Men vs Street Fighter and NOT X-Men
+ * vs. Street Fighter
+ * 
+ * supports Single Disc,Single Track games (most of the later games) Single
+ * Disc,Multi Track games (most of the early games) Multi Disc,Single Track
+ * games (e.g. X-Files) Multi Disc,Multi Track games (e.g. Alone in the Dark)
+ */
 public class Main {
+
+	private static boolean isFixModeOn = false;
+
 	public static void main(String[] args) throws IOException {
+		if (2 == args.length && args[1].equals("--fix")) {
+			isFixModeOn = true;
+		}
+
 		File dir = new File(args[0]);
 		File[] directoryListing = dir.listFiles();
 		if (directoryListing != null) {
 			checkFiles(directoryListing);
 		} else {
-			System.out.println("No directory given or directory non-existent, Usage: checksum <dir>");
+			System.out.println("No directory given or directory non-existent, Usage: checkfilenames <dir>");
 			System.exit(0);
 		}
-		
+
 		System.out.println("## DONE ##");
 	}
 
@@ -24,6 +43,7 @@ public class Main {
 			if (child.isDirectory()) {
 				checkFiles(child.listFiles());
 			} else {
+				// ignore sub-channel files
 				if (child.getName().contains(".sbi")) {
 					continue;
 				}
@@ -36,73 +56,172 @@ public class Main {
 					System.exit(0);
 				}
 
-				// Todo multi disc and multi disc and multitrack
+				if (child.getName().contains("(Disc")) {
+					// deconstruct parent name
+					p = Pattern.compile("(.*?)(\\[.*?\\])\\s(\\(.*?\\))\\s(\\[S.*?-\\d\\d\\d\\d\\d\\])");
+					m = p.matcher(child.getParentFile().getName());
 
-				// deconstruct parent name
-				p = Pattern.compile("(.*?)(\\[.*?\\])\\s*?(\\[S.*?-\\d\\d\\d\\d\\d\\])");
-				m = p.matcher(child.getParentFile().getName());
+					// Multitrack?
+					if (child.getName().contains("(Track")) {
+						if (m.find()) {
+							// Multi-Disc, Multi-Track
+							String s1 = m.group(1);
+							String s2 = m.group(2);
+							String s3 = m.group(3);
+							String s4 = m.group(4);
 
-				// Multitrack?
-				if (child.getName().contains("(Track")) {
-					if (m.find()) {
-						String s1 = m.group(1);
-						String s2 = m.group(2);
-						String s3 = m.group(3);
+							// check if filename fits parent name
+							Pattern p_multi = Pattern.compile(s1.replace("[", "\\[").replace("]", "\\]")
+									.replace("(", "\\(").replace(")", "\\)")
+									+ s2.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+									+ "\\s"
+									+ s3.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+									+ "\\s(\\(Track \\d\\d\\))\\s*?"
+									+ s4.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+									+ "\\.(cue|bin)");
+							Matcher m_multi = p_multi.matcher(child.getName());
+							if (m_multi.find()) {
+							} else {
+								Pattern p_track = Pattern.compile("\\(Track\\s(\\d{1,2})\\)");
+								Matcher m_track = p_track.matcher(child.getName());
 
-						Pattern p_multi = Pattern.compile(
-								s1.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
-								+ s2.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
-								+ "\\s*?(\\(Track \\d\\d\\))\\s*?"
-								+ s3.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
-								+ "\\.(cue|bin)");
-						Matcher m_multi = p_multi.matcher(child.getName());
-						if (m_multi.find()) {
-						} else {
-							Pattern p_track = Pattern.compile("\\(Track\\s(\\d{1,2})\\)");
-							Matcher m_track = p_track.matcher(child.getName());
+								if (m_track.find()) {
+									String sTrack = m_track.group(1);
+									sTrack = sTrack.substring(0, sTrack.length());
+									String sTrackLeadingZeros = "00".concat(sTrack);
+									sTrack = sTrackLeadingZeros.substring(sTrackLeadingZeros.length() - 2,
+											sTrackLeadingZeros.length());
 
-							if (m_track.find()) {
-								String sTrack = m_track.group(1);
-								sTrack = sTrack.substring(0, sTrack.length());
-								String sTrackLeadingZeros = "00".concat(sTrack);
-								sTrack = sTrackLeadingZeros.substring(sTrackLeadingZeros.length() - 2,
-										sTrackLeadingZeros.length());
+									Pattern p_ext = Pattern.compile("(\\.[a-zA-z][a-zA-z][a-zA-z])");
+									Matcher m_ext = p_ext.matcher(child.getName());
 
+									if (m_ext.find()) {
+										String sFilename = s1 + s2 + " " + s3 + " (Track " + sTrack + ") " + s4
+												+ m_ext.group(0);
+										System.out.println("ERROR: File \"" + child.getName() + "\" should be named \""
+												+ sFilename + "\"");
+										if (isFixModeOn) {
+											child.renameTo(new File(child.getParent() + "\\" + sFilename));
+											System.out.println("renamed");
+										}
+									}
+								}
+							}
+						}
+					} else {
+						// Multi-Disc, Single-Track
+						if (m.find()) {
+							String s1 = m.group(1);
+							String s2 = m.group(2);
+							String s3 = m.group(3);
+							String s4 = m.group(4);
+
+							// check if filename fits parent name
+							Pattern p_single = Pattern.compile(s1.replace("[", "\\[").replace("]", "\\]")
+									.replace("(", "\\(").replace(")", "\\)")
+									+ s2.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+									+ "\\s"
+									+ s3.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+									+ "\\s"
+									+ s4.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+									+ "\\.(cue|bin)");
+							Matcher m_single = p_single.matcher(child.getName());
+							if (m_single.find()) {
+							} else {
 								Pattern p_ext = Pattern.compile("(\\.[a-zA-z][a-zA-z][a-zA-z])");
 								Matcher m_ext = p_ext.matcher(child.getName());
 
 								if (m_ext.find()) {
-									String sFilename = s1 + s2 + " (Track " + sTrack + ") " + s3 + m_ext.group(0);
+									String sFilename = s1 + s2 + " " + s3 + " " + s4 + m_ext.group(0);
 									System.out.println("ERROR: File \"" + child.getName() + "\" should be named \""
 											+ sFilename + "\"");
-									child.renameTo(new File(child.getParent()+"\\"+sFilename));
-									System.out.println("renamed");
+									if (isFixModeOn) {
+										child.renameTo(new File(child.getParent() + "\\" + sFilename));
+										System.out.println("renamed");
+									}
 								}
 							}
 						}
 					}
 				} else {
-					// check if filename fits parent name
-					if (m.find()) {
-						String s1 = m.group(1);
-						String s2 = m.group(2);
-						String s3 = m.group(3);
+					// deconstruct parent name
+					p = Pattern.compile("(.*?)(\\[.*?\\])\\s*?(\\[S.*?-\\d\\d\\d\\d\\d\\])");
+					m = p.matcher(child.getParentFile().getName());
 
-						Pattern p_single = Pattern.compile(
-								s1.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)") + s2.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
-										+ "\\s*?" + s3.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)") + "\\.(cue|bin)");
-						Matcher m_single = p_single.matcher(child.getName());
-						if (m_single.find()) {
-						} else {
-							Pattern p_ext = Pattern.compile("(\\.[a-zA-z][a-zA-z][a-zA-z])");
-							Matcher m_ext = p_ext.matcher(child.getName());
+					// Multitrack?
+					if (child.getName().contains("(Track")) {
+						if (m.find()) {
+							// Single Disc, Multitrack
+							String s1 = m.group(1);
+							String s2 = m.group(2);
+							String s3 = m.group(3);
 
-							if (m_ext.find()) {
-								String sFilename = s1 + s2 + " " + s3 + m_ext.group(0);
-								System.out.println("ERROR: File \"" + child.getName() + "\" should be named \""
-										+ sFilename + "\"");
-								child.renameTo(new File(child.getParent()+"\\"+sFilename));
-								System.out.println("renamed");
+							// check if filename fits parent name
+							Pattern p_multi = Pattern.compile(
+									s1.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+											+ s2.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(")
+													.replace(")", "\\)")
+											+ "\\s*?(\\(Track \\d\\d\\))\\s*?" + s3.replace("[", "\\[")
+													.replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+											+ "\\.(cue|bin)");
+							Matcher m_multi = p_multi.matcher(child.getName());
+							if (m_multi.find()) {
+							} else {
+								Pattern p_track = Pattern.compile("\\(Track\\s(\\d{1,2})\\)");
+								Matcher m_track = p_track.matcher(child.getName());
+
+								if (m_track.find()) {
+									String sTrack = m_track.group(1);
+									sTrack = sTrack.substring(0, sTrack.length());
+									String sTrackLeadingZeros = "00".concat(sTrack);
+									sTrack = sTrackLeadingZeros.substring(sTrackLeadingZeros.length() - 2,
+											sTrackLeadingZeros.length());
+
+									Pattern p_ext = Pattern.compile("(\\.[a-zA-z][a-zA-z][a-zA-z])");
+									Matcher m_ext = p_ext.matcher(child.getName());
+
+									if (m_ext.find()) {
+										String sFilename = s1 + s2 + " (Track " + sTrack + ") " + s3 + m_ext.group(0);
+										System.out.println("ERROR: File \"" + child.getName() + "\" should be named \""
+												+ sFilename + "\"");
+										if (isFixModeOn) {
+											child.renameTo(new File(child.getParent() + "\\" + sFilename));
+											System.out.println("renamed");
+										}
+									}
+								}
+							}
+						}
+					} else {
+						if (m.find()) {
+							// Single Track, Single Disc
+							String s1 = m.group(1);
+							String s2 = m.group(2);
+							String s3 = m.group(3);
+
+							// check if filename fits parent name
+							Pattern p_single = Pattern.compile(
+									s1.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(").replace(")", "\\)")
+											+ s2.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(")
+													.replace(")", "\\)")
+											+ "\\s*?" + s3.replace("[", "\\[").replace("]", "\\]").replace("(", "\\(")
+													.replace(")", "\\)")
+											+ "\\.(cue|bin)");
+							Matcher m_single = p_single.matcher(child.getName());
+							if (m_single.find()) {
+							} else {
+								Pattern p_ext = Pattern.compile("(\\.[a-zA-z][a-zA-z][a-zA-z])");
+								Matcher m_ext = p_ext.matcher(child.getName());
+
+								if (m_ext.find()) {
+									String sFilename = s1 + s2 + " " + s3 + m_ext.group(0);
+									System.out.println("ERROR: File \"" + child.getName() + "\" should be named \""
+											+ sFilename + "\"");
+									if (isFixModeOn) {
+										child.renameTo(new File(child.getParent() + "\\" + sFilename));
+										System.out.println("renamed");
+									}
+								}
 							}
 						}
 					}
