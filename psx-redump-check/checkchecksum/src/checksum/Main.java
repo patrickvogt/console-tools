@@ -90,7 +90,7 @@ public class Main {
 				boolean isCRC32 = false;
 				String sRefCRC32 = "";
 				// Extract ID from filename
-				Pattern p = Pattern.compile("\\[(S[A-Z][A-Z][A-Z]-\\d\\d\\d\\d\\d)\\]");
+				Pattern p = Pattern.compile("\\[(S?[A-Z][A-Z][A-Z]-[\\d|S]\\d\\d\\d\\d)\\]");
 				Matcher m = p.matcher(key);
 				if (m.find()) {
 					String sMapped = mNameMapping.get(m.group(1));
@@ -232,8 +232,7 @@ public class Main {
 //			factory.setValidating(true);
 		factory.setIgnoringElementContentWhitespace(true);
 		DocumentBuilder builder = factory.newDocumentBuilder();
-		File file = new File(Main.class.getResource("/resources/psx.dat").getPath());
-		mDoc = builder.parse(file);
+		mDoc = builder.parse(Main.class.getResourceAsStream("/resources/psx.dat"));
 
 		traverse(mDoc.getElementsByTagName("game"));
 	}
